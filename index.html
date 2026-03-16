@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Risk Engine — Portfolio Risk Assessment Tool</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#0a0e1a;--panel:#111827;--card:#1a2233;--border:#1e2d45;
+  --accent:#00d4ff;--green:#00e5a0;--red:#ff4d6a;--amber:#ffb547;--purple:#a78bfa;
+  --text:#e2e8f0;--muted:#64748b;--dim:#334155;
+  --font:'DM Sans',sans-serif;--mono:'IBM Plex Mono',monospace;
+}
+
+body{background:var(--navy);color:var(--text);font-family:var(--font);font-size:14px;min-height:100vh;overflow-x:hidden}
+.app{display:grid;grid-template-rows:auto auto 1fr;min-height:100vh}
+
+.topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:16px}
+.logo{font-family:var(--mono);font-size:13px;color:var(--accent);letter-spacing:.08em}
+.logo span{color:var(--muted)}
+.tagline{font-size:12px;color:var(--muted);margin-left:auto}
+.badge{background:rgba(0,212,255,.12);color:var(--accent);border:1px solid rgba(0,212,255,.25);border-radius:4px;font-family:var(--mono);font-size:10px;padding:2px 8px;letter-spacing:.05em}
+
+.tabs{background:var(--panel);border-bottom:1px solid var(--border);display:flex;padding:0 24px;gap:0}
+.tab{padding:10px 18px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;user-select:none;white-space:nowrap}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab:hover:not(.active){color:var(--text)}
+
+.content{padding:20px 24px;display:none;flex-direction:column;gap:16px}
+.content.active{display:flex}
+
+.stat-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px;position:relative;overflow:hidden}
+.stat::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--clr,var(--accent))}
+.stat-label{font-size:11px;color:var(--muted);font-family:var(--mono);letter-spacing:.04em;margin-bottom:4px}
+.stat-val{font-size:22px;font-weight:600;font-family:var(--mono);color:var(--clr,var(--text))}
+.stat-sub{font-size:11px;color:var(--muted);margin-top:3px}
+
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px}
+.panel-title{font-size:11px;color:var(--muted);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.panel-title .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+
+.chart-wrap{position:relative;width:100%}
+
+.alloc-item{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.alloc-ticker{font-family:var(--mono);font-size:12px;color:var(--text);width:44px}
+.alloc-bar-wrap{flex:1;background:var(--dim);border-radius:3px;height:8px;overflow:hidden}
+.alloc-bar{height:100%;border-radius:3px;transition:width .5s ease}
+.alloc-pct{font-family:var(--mono);font-size:12px;color:var(--muted);width:36px;text-align:right}
+
+.matrix{display:grid;gap:2px;width:fit-content;margin:0 auto}
+.cell{width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;border-radius:3px}
+
+.scenario-card{background:var(--navy);border:1px solid var(--border);border-radius:8px;padding:12px;cursor:pointer;transition:border-color .15s}
+.scenario-card:hover,.scenario-card.active{border-color:var(--accent)}
+.sc-title{font-size:13px;font-weight:500;margin-bottom:4px}
+.sc-impact{font-size:20px;font-weight:600;font-family:var(--mono);margin:6px 0 4px}
+.sc-desc{font-size:11px;color:var(--muted);line-height:1.5}
+.sc-tag{display:inline-block;padding:2px 7px;border-radius:3px;font-size:10px;font-family:var(--mono);margin-bottom:6px}
+
+.llm-box{background:var(--navy);border:1px solid rgba(0,212,255,.2);border-radius:8px;padding:14px;font-size:13px;line-height:1.6;color:var(--text)}
+.llm-box .typing{display:inline-block;width:6px;height:13px;background:var(--accent);animation:blink .7s step-end infinite;vertical-align:bottom;margin-left:2px}
+@keyframes blink{50%{opacity:0}}
+
+.opt-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.opt-ticker{font-family:var(--mono);font-size:13px;color:var(--text);width:44px}
+.opt-slider{flex:1;-webkit-appearance:none;appearance:none;height:4px;border-radius:2px;background:var(--dim);outline:none}
+.opt-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:pointer}
+.opt-pct{font-family:var(--mono);font-size:12px;width:40px;text-align:right;color:var(--accent)}
+.opt-change{font-family:var(--mono);font-size:11px;width:48px;text-align:right}
+
+.mc-stat{text-align:center;padding:10px}
+.mc-stat .val{font-size:28px;font-weight:600;font-family:var(--mono);margin:4px 0}
+.mc-stat .lbl{font-size:11px;color:var(--muted);font-family:var(--mono)}
+
+.upload-zone{border:2px dashed var(--border);border-radius:10px;padding:32px;text-align:center;transition:border-color .2s;cursor:pointer}
+.upload-zone:hover{border-color:var(--accent)}
+.upload-icon{font-size:32px;margin-bottom:12px;opacity:.5}
+.upload-zone p{color:var(--muted);font-size:13px;margin-top:6px}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--muted);padding:6px 10px;border-bottom:1px solid var(--border);font-weight:500}
+td{padding:8px 10px;border-bottom:1px solid rgba(30,45,69,.5);font-family:var(--mono);font-size:12px}
+tr:last-child td{border-bottom:none}
+.positive{color:var(--green)}
+.negative{color:var(--red)}
+.neutral{color:var(--amber)}
+
+.run-btn{background:rgba(0,212,255,.15);border:1px solid rgba(0,212,255,.3);color:var(--accent);padding:8px 20px;border-radius:6px;font-family:var(--mono);font-size:12px;cursor:pointer;letter-spacing:.05em;transition:all .15s;margin-top:6px}
+.run-btn:hover{background:rgba(0,212,255,.25)}
+
+.progress-bar{height:4px;background:var(--dim);border-radius:2px;overflow:hidden;margin-top:8px}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--purple));border-radius:2px;width:0%;transition:width .1s linear}
+
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--panel)}
+::-webkit-scrollbar-thumb{background:var(--dim);border-radius:2px}
+</style>
+</head>
+<body>
+<div class="app">
+
+<div class="topbar">
+  <div class="logo">RISK<span>//</span>ENGINE</div>
+  <div class="badge">DEMO v2.1</div>
+  <div class="tagline">AI-Powered Portfolio Risk &amp; Optimization Platform</div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('overview')">Overview</div>
+  <div class="tab" onclick="showTab('montecarlo')">Monte Carlo</div>
+  <div class="tab" onclick="showTab('scenarios')">Scenario Analysis</div>
+  <div class="tab" onclick="showTab('optimizer')">Optimizer</div>
+  <div class="tab" onclick="showTab('upload')">Portfolio Upload</div>
+</div>
+
+<!-- OVERVIEW -->
+<div class="content active" id="tab-overview">
+  <div class="stat-row">
+    <div class="stat" style="--clr:var(--red)"><div class="stat-label">VaR (95%, 1D)</div><div class="stat-val">-2.34%</div><div class="stat-sub">$23,400 on $1M</div></div>
+    <div class="stat" style="--clr:var(--red)"><div class="stat-label">CVaR (95%)</div><div class="stat-val">-3.81%</div><div class="stat-sub">Expected tail loss</div></div>
+    <div class="stat" style="--clr:var(--green)"><div class="stat-label">Sharpe Ratio</div><div class="stat-val">1.47</div><div class="stat-sub">Risk-adjusted return</div></div>
+    <div class="stat" style="--clr:var(--amber)"><div class="stat-label">Annualized Vol</div><div class="stat-val">18.6%</div><div class="stat-sub">Portfolio std dev</div></div>
+    <div class="stat" style="--clr:var(--purple)"><div class="stat-label">Max Drawdown</div><div class="stat-val">-14.2%</div><div class="stat-sub">Historical worst</div></div>
+  </div>
+  <div class="two-col">
+    <div class="panel"><div class="panel-title"><span class="dot"></span>Current Allocation</div><div id="alloc-list"></div></div>
+    <div class="panel"><div class="panel-title"><span class="dot" style="background:var(--purple)"></span>Correlation Matrix</div><div id="corr-matrix" style="overflow-x:auto"></div></div>
+  </div>
+  <div class="two-col">
+    <div class="panel"><div class="panel-title"><span class="dot" style="background:var(--green)"></span>90-Day P&amp;L Simulation</div><div class="chart-wrap" style="height:220px"><canvas id="pnlChart"></canvas></div></div>
+    <div class="panel"><div class="panel-title"><span class="dot" style="background:var(--amber)"></span>Risk Breakdown by Asset</div><div class="chart-wrap" style="height:220px"><canvas id="riskChart"></canvas></div></div>
+  </div>
+</div>
+
+<!-- MONTE CARLO -->
+<div class="content" id="tab-montecarlo">
+  <div class="three-col">
+    <div class="panel mc-stat"><div class="lbl">Simulations</div><div class="val" style="color:var(--accent)">10,000</div><div class="lbl">iterations</div></div>
+    <div class="panel mc-stat"><div class="lbl">Median Return (1Y)</div><div class="val positive">+12.3%</div><div class="lbl">50th percentile</div></div>
+    <div class="panel mc-stat"><div class="lbl">5th Percentile</div><div class="val negative">-18.7%</div><div class="lbl">tail scenario</div></div>
+  </div>
+  <div class="panel"><div class="panel-title"><span class="dot"></span>Monte Carlo Distribution — 1-Year Forward Returns</div><div class="chart-wrap" style="height:260px"><canvas id="mcChart"></canvas></div></div>
+  <div class="two-col">
+    <div class="panel">
+      <div class="panel-title"><span class="dot" style="background:var(--purple)"></span>Percentile Table</div>
+      <table>
+        <tr><th>Percentile</th><th>Return</th><th>Portfolio Value ($1M)</th></tr>
+        <tr><td>5th</td><td class="negative">-18.7%</td><td class="negative">$813,000</td></tr>
+        <tr><td>10th</td><td class="negative">-11.2%</td><td class="negative">$888,000</td></tr>
+        <tr><td>25th</td><td class="negative">-2.4%</td><td class="negative">$976,000</td></tr>
+        <tr><td>50th</td><td class="positive">+12.3%</td><td class="positive">$1,123,000</td></tr>
+        <tr><td>75th</td><td class="positive">+24.8%</td><td class="positive">$1,248,000</td></tr>
+        <tr><td>90th</td><td class="positive">+38.1%</td><td class="positive">$1,381,000</td></tr>
+        <tr><td>95th</td><td class="positive">+47.6%</td><td class="positive">$1,476,000</td></tr>
+      </table>
+    </div>
+    <div class="panel"><div class="panel-title"><span class="dot" style="background:var(--amber)"></span>Risk Paths — Worst 5%</div><div class="chart-wrap" style="height:200px"><canvas id="pathChart"></canvas></div></div>
+  </div>
+</div>
+
+<!-- SCENARIOS -->
+<div class="content" id="tab-scenarios">
+  <div class="three-col" id="scenario-cards"></div>
+  <div class="two-col">
+    <div class="panel"><div class="panel-title"><span class="dot" style="background:var(--red)"></span>Asset Impact by Scenario</div><div class="chart-wrap" style="height:240px"><canvas id="scenChart"></canvas></div></div>
+    <div class="panel"><div class="panel-title"><span class="dot" style="background:var(--accent)"></span>LLM Scenario Analysis</div><div class="llm-box" id="llm-output">Select a scenario above to generate AI-powered analysis...</div></div>
+  </div>
+</div>
+
+<!-- OPTIMIZER -->
+<div class="content" id="tab-optimizer">
+  <div class="two-col">
+    <div class="panel">
+      <div class="panel-title"><span class="dot"></span>CVXPY Constrained Optimization</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px;font-family:var(--mono)">Maximize Sharpe Ratio · Constraints: 0–40% per asset, ≥5% bonds</div>
+      <div id="opt-sliders"></div>
+      <button class="run-btn" onclick="runOptimizer()">RUN OPTIMIZER</button>
+      <div class="progress-bar" style="margin-top:10px"><div class="progress-fill" id="opt-progress"></div></div>
+    </div>
+    <div class="panel"><div class="panel-title"><span class="dot" style="background:var(--green)"></span>Efficient Frontier</div><div class="chart-wrap" style="height:280px"><canvas id="frontierChart"></canvas></div></div>
+  </div>
+  <div class="panel">
+    <div class="panel-title"><span class="dot" style="background:var(--purple)"></span>Optimization Results</div>
+    <table>
+      <tr><th>Asset</th><th>Current Weight</th><th>Optimal Weight</th><th>Change</th><th>Expected Contribution</th></tr>
+      <tr><td>AAPL</td><td>25%</td><td class="neutral">28%</td><td class="positive">+3%</td><td class="positive">+0.42%</td></tr>
+      <tr><td>MSFT</td><td>20%</td><td class="neutral">22%</td><td class="positive">+2%</td><td class="positive">+0.31%</td></tr>
+      <tr><td>BTC</td><td>15%</td><td class="neutral">8%</td><td class="negative">-7%</td><td class="negative">-0.18%</td></tr>
+      <tr><td>GOOGL</td><td>15%</td><td class="neutral">18%</td><td class="positive">+3%</td><td class="positive">+0.29%</td></tr>
+      <tr><td>TLT</td><td>15%</td><td class="neutral">14%</td><td class="negative">-1%</td><td class="positive">+0.11%</td></tr>
+      <tr><td>GLD</td><td>10%</td><td class="neutral">10%</td><td class="neutral">0%</td><td class="positive">+0.09%</td></tr>
+      <tr style="font-weight:500"><td>Portfolio Sharpe</td><td>1.47</td><td class="positive">1.82</td><td class="positive">+0.35</td><td>Expected annual: +1.04%</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- UPLOAD -->
+<div class="content" id="tab-upload">
+  <div class="two-col">
+    <div class="panel">
+      <div class="panel-title"><span class="dot"></span>Upload Portfolio CSV</div>
+      <div class="upload-zone" onclick="simulateUpload()">
+        <div class="upload-icon">📂</div>
+        <div style="font-size:15px;font-weight:500;color:var(--text)">Drop portfolio CSV here</div>
+        <p>Columns: ticker, weight, quantity, cost_basis</p>
+        <button class="run-btn" style="margin-top:12px">BROWSE FILE</button>
+      </div>
+      <div style="margin-top:14px">
+        <div class="panel-title" style="margin-bottom:10px"><span class="dot" style="background:var(--green)"></span>Sample Format</div>
+        <table>
+          <tr><th>ticker</th><th>weight</th><th>quantity</th><th>cost_basis</th></tr>
+          <tr><td>AAPL</td><td>0.25</td><td>142</td><td>$142.50</td></tr>
+          <tr><td>MSFT</td><td>0.20</td><td>68</td><td>$285.20</td></tr>
+          <tr><td>BTC-USD</td><td>0.15</td><td>0.35</td><td>$38,400</td></tr>
+          <tr><td>TLT</td><td>0.15</td><td>210</td><td>$95.80</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title"><span class="dot" style="background:var(--amber)"></span>Data Pipeline Status</div>
+      <div id="pipeline-steps"></div>
+      <div class="panel-title" style="margin-top:18px"><span class="dot" style="background:var(--purple)"></span>yFinance Data Fetch Log</div>
+      <div style="background:var(--navy);border-radius:6px;padding:12px;font-family:var(--mono);font-size:11px;color:var(--muted);line-height:2" id="log-output">
+        <span style="color:var(--accent)">→</span> Ready to fetch market data...<br>
+        <span style="color:var(--muted)">$ python -m yfinance --tickers AAPL MSFT BTC GOOGL TLT GLD</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const assets=['AAPL','MSFT','BTC','GOOGL','TLT','GLD'];
+const weights=[25,20,15,15,15,10];
+const colors=['#00d4ff','#a78bfa','#ff4d6a','#00e5a0','#ffb547','#f472b6'];
+const currentWeights={AAPL:25,MSFT:20,BTC:15,GOOGL:15,TLT:15,GLD:10};
+const optWeights={AAPL:28,MSFT:22,BTC:8,GOOGL:18,TLT:14,GLD:10};
+const corrData=[[1.00,0.82,0.41,0.78,-0.31,0.15],[0.82,1.00,0.38,0.74,-0.28,0.12],[0.41,0.38,1.00,0.35,-0.12,0.28],[0.78,0.74,0.35,1.00,-0.25,0.11],[-0.31,-0.28,-0.12,-0.25,1.00,0.42],[0.15,0.12,0.28,0.11,0.42,1.00]];
+
+const scenarios=[
+  {id:'rate',title:'Rate Hike +200bps',impact:'-8.4%',tag:'MACRO',tagColor:'rgba(255,77,106,.15)',tagText:'#ff4d6a',desc:'Fed raises rates by 200 basis points. Bond holdings decline sharply; tech valuations compressed.',impacts:{AAPL:-12,MSFT:-10,BTC:-22,GOOGL:-11,TLT:-14,GLD:+8}},
+  {id:'crash',title:'Crypto Crash -60%',impact:'-9.2%',tag:'CRYPTO',tagColor:'rgba(255,181,71,.15)',tagText:'#ffb547',desc:'Bitcoin falls 60%. Contagion effect spills into tech equities. Flight to quality supports bonds.',impacts:{AAPL:-6,MSFT:-5,BTC:-60,GOOGL:-7,TLT:+5,GLD:+12}},
+  {id:'recession',title:'Recession Scenario',impact:'-21.7%',tag:'SYSTEMIC',tagColor:'rgba(167,139,250,.15)',tagText:'#a78bfa',desc:'Deep recession. S&P -30%, tech underperforms, bonds rally. BTC sentiment-driven sell-off.',impacts:{AAPL:-28,MSFT:-25,BTC:-45,GOOGL:-30,TLT:+18,GLD:+15}},
+  {id:'rally',title:'Risk-On Bull Run',impact:'+31.2%',tag:'BULLISH',tagColor:'rgba(0,229,160,.15)',tagText:'#00e5a0',desc:'Strong economic data and AI adoption tailwinds. Tech and crypto surge. Bonds flatten.',impacts:{AAPL:+35,MSFT:+30,BTC:+80,GOOGL:+40,TLT:-5,GLD:-3}},
+  {id:'stagflation',title:'Stagflation',impact:'-11.3%',tag:'INFLATION',tagColor:'rgba(0,212,255,.15)',tagText:'#00d4ff',desc:'High inflation + low growth. Real assets outperform. Equities stagnate. Bonds lose real value.',impacts:{AAPL:-15,MSFT:-14,BTC:-8,GOOGL:-16,TLT:-12,GLD:+22}},
+  {id:'aicrash',title:'AI Bubble Burst',impact:'-18.5%',tag:'SECTOR',tagColor:'rgba(244,114,182,.15)',tagText:'#f472b6',desc:'AI hype collapses. NASDAQ -40%. Tech portfolio severely exposed. Flight to defensives.',impacts:{AAPL:-38,MSFT:-36,BTC:-30,GOOGL:-42,TLT:+10,GLD:+18}}
+];
+
+const llmTexts={
+  rate:`📊 Interest Rate Shock Analysis\n\nA 200bps rate hike triggers duration risk across your bond allocation (TLT -14%). Tech valuations are sensitive to discount rate assumptions — your combined AAPL/MSFT/GOOGL position (~60% of portfolio) faces P/E compression.\n\n⚠️ Key Risk: Long-duration bonds and growth equities are doubly exposed.\n\n💡 Recommendation: Rotate 5-8% from TLT to short-duration TIPS. Consider adding VIXY as rate hedge.`,
+  crash:`₿ Crypto Contagion Scenario\n\nBTC at 15% allocation creates a -9% portfolio drag on a 60% crypto drawdown. Historically, crypto crashes correlate with risk-off sentiment, dragging tech by an additional 5-7%.\n\n⚠️ Key Risk: Crypto and tech correlation spikes to 0.6+ during stress events.\n\n💡 Recommendation: Cap BTC at 5-8% max per optimizer output. The asymmetric downside doesn't justify current weight.`,
+  recession:`🔻 Deep Recession Analysis\n\nYour portfolio has 75% equity exposure with limited defensives. In a 2008-style scenario, expected drawdown is -21.7% — exceeding stated risk tolerance.\n\n⚠️ Key Risk: No dividend-paying defensives and minimal gold exposure.\n\n💡 Recommendation: Increase TLT to 25%, add 5% XLP (consumer staples). GLD at 15% in recession-adjusted Sharpe.`,
+  rally:`🚀 Bull Market Scenario\n\nYour tech-heavy portfolio is well-positioned for a risk-on environment. AI tailwinds directly benefit MSFT (Azure AI), GOOGL (Gemini), and AAPL (on-device ML).\n\n✅ Strength: High beta exposure (1.34 portfolio beta) amplifies upside in bull markets.\n\n💡 Optimization: Increase BTC to 20% and reduce TLT to 8% — but note significant scenario dependence risk.`,
+  stagflation:`📈 Stagflation Regime Analysis\n\nStagflation historically devastates 60/40 portfolios. Your 15% gold allocation provides partial hedge but is insufficient for sustained inflationary periods.\n\n⚠️ Key Risk: Real returns on equities and bonds both compress simultaneously.\n\n💡 Recommendation: Increase GLD to 20-25%. Consider adding commodity exposure (GSG ETF). Replace TLT with TIPS.`,
+  aicrash:`🤖 AI Sector Bubble Risk\n\nWith AAPL+MSFT+GOOGL = 60% of portfolio, AI bubble burst is your highest concentration risk. All three trade at elevated AI-premium multiples.\n\n⚠️ Key Risk: Sector correlation rises to 0.9+ in a thematic sell-off.\n\n💡 Recommendation: Add non-tech exposure: VYM (dividend), XLE (energy), or international equities (VXUS).`
+};
+
+function showTab(id){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.getAttribute('onclick').includes("'"+id+"'")));
+  document.querySelectorAll('.content').forEach(c=>c.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+}
+
+function renderAlloc(){
+  document.getElementById('alloc-list').innerHTML=assets.map((a,i)=>`
+    <div class="alloc-item">
+      <span class="alloc-ticker">${a}</span>
+      <div class="alloc-bar-wrap"><div class="alloc-bar" style="width:${weights[i]*2.5}%;background:${colors[i]}"></div></div>
+      <span class="alloc-pct">${weights[i]}%</span>
+    </div>`).join('');
+}
+
+function renderCorr(){
+  const tickers=['AAPL','MSFT','BTC','GOOG','TLT','GLD'];
+  let html=`<div class="matrix" style="grid-template-columns:repeat(7,38px)"><div class="cell"></div>`;
+  tickers.forEach(t=>html+=`<div class="cell" style="font-family:var(--mono);font-size:9px;color:var(--muted)">${t}</div>`);
+  corrData.forEach((row,i)=>{
+    html+=`<div class="cell" style="font-family:var(--mono);font-size:9px;color:var(--muted)">${tickers[i]}</div>`;
+    row.forEach(v=>{
+      const alpha=Math.abs(v)*0.8+0.1;
+      const bg=v>0.5?`rgba(255,77,106,${alpha})`:v<-0.2?`rgba(0,229,160,${alpha})`:`rgba(100,116,139,${alpha*0.6})`;
+      html+=`<div class="cell" style="background:${bg};font-size:9px;color:#fff">${v.toFixed(2)}</div>`;
+    });
+  });
+  document.getElementById('corr-matrix').innerHTML=html+'</div>';
+}
+
+Chart.defaults.color='#64748b';
+Chart.defaults.borderColor='rgba(30,45,69,0.8)';
+
+function makeGrad(ctx,color){
+  const g=ctx.createLinearGradient(0,0,0,300);
+  const c=color.replace('#','');
+  const r=parseInt(c.substr(0,2),16),gr=parseInt(c.substr(2,2),16),b=parseInt(c.substr(4,2),16);
+  g.addColorStop(0,`rgba(${r},${gr},${b},0.15)`);g.addColorStop(1,`rgba(${r},${gr},${b},0)`);return g;
+}
+
+function renderPnl(){
+  const ctx=document.getElementById('pnlChart').getContext('2d');
+  const days=Array.from({length:90},(_,i)=>i+1);
+  let v=1000000;const data=days.map(()=>{v+=v*(Math.random()-.44)*.012;return Math.round(v)});
+  new Chart(ctx,{type:'line',data:{labels:days,datasets:[{label:'Portfolio Value',data,borderColor:'#00d4ff',borderWidth:1.5,backgroundColor:makeGrad(ctx,'00d4ff'),pointRadius:0,tension:0.3,fill:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{maxTicksLimit:6},grid:{color:'rgba(30,45,69,.5)'}},y:{ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'},grid:{color:'rgba(30,45,69,.5)'}}}}});
+}
+
+function renderRisk(){
+  const ctx=document.getElementById('riskChart').getContext('2d');
+  new Chart(ctx,{type:'bar',data:{labels:assets,datasets:[{data:[38,26,18,11,4,3],backgroundColor:colors,borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{ticks:{callback:v=>v+'%'},grid:{color:'rgba(30,45,69,.5)'}}}}});
+}
+
+function renderMC(){
+  const ctx=document.getElementById('mcChart').getContext('2d');
+  const freq=[80,180,340,820,1600,2400,2200,1400,620,260,100];
+  new Chart(ctx,{type:'bar',data:{labels:['-40%','-30%','-20%','-10%','0%','10%','20%','30%','40%','50%','60%'],datasets:[{label:'Frequency',data:freq,backgroundColor:freq.map((_,i)=>i<4?'rgba(255,77,106,0.7)':'rgba(0,229,160,0.7)'),borderRadius:3,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{ticks:{display:false},grid:{display:false}}}}});
+}
+
+function renderPaths(){
+  const ctx=document.getElementById('pathChart').getContext('2d');
+  const qs=Array.from({length:52},(_,i)=>i+1);
+  function path(drift,vol){let v=100;return qs.map(()=>{v*=(1+drift/52+vol*((Math.random()-.5)*2)/Math.sqrt(52));return+v.toFixed(2)});}
+  const datasets=[[-0.18,0.22],[-0.22,0.25],[-0.25,0.28],[-0.30,0.30],[-0.28,0.26]].map((p,i)=>({label:`Path ${i+1}`,data:path(...p),borderColor:`rgba(255,77,106,${0.4+i*0.1})`,borderWidth:1,pointRadius:0,tension:0.3,fill:false}));
+  new Chart(ctx,{type:'line',data:{labels:qs.map(q=>'W'+q),datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{maxTicksLimit:8},grid:{color:'rgba(30,45,69,.5)'}},y:{grid:{color:'rgba(30,45,69,.5)'}}}}});
+}
+
+let scenChartInst=null;
+function renderScenChart(sc){
+  const ctx=document.getElementById('scenChart').getContext('2d');
+  if(scenChartInst)scenChartInst.destroy();
+  const vals=assets.map(a=>sc.impacts[a]);
+  scenChartInst=new Chart(ctx,{type:'bar',data:{labels:assets,datasets:[{data:vals,backgroundColor:vals.map(v=>v>0?'rgba(0,229,160,0.75)':'rgba(255,77,106,0.75)'),borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{ticks:{callback:v=>v+'%'},grid:{color:'rgba(30,45,69,.5)'}}}}});
+}
+
+function renderScenarios(){
+  document.getElementById('scenario-cards').innerHTML=scenarios.map(sc=>`
+    <div class="scenario-card" id="sc-${sc.id}" onclick="selectScenario('${sc.id}')">
+      <span class="sc-tag" style="background:${sc.tagColor};color:${sc.tagText}">${sc.tag}</span>
+      <div class="sc-title">${sc.title}</div>
+      <div class="sc-impact" style="color:${sc.impact.startsWith('-')?'var(--red)':'var(--green)'}">${sc.impact}</div>
+      <div class="sc-desc">${sc.desc.substring(0,80)}...</div>
+    </div>`).join('');
+}
+
+function selectScenario(id){
+  document.querySelectorAll('.scenario-card').forEach(c=>c.classList.remove('active'));
+  document.getElementById('sc-'+id).classList.add('active');
+  renderScenChart(scenarios.find(s=>s.id===id));
+  typeLLM(llmTexts[id]);
+}
+
+function typeLLM(text){
+  const el=document.getElementById('llm-output');
+  el.innerHTML='<span class="typing"></span>';
+  let i=0;
+  const iv=setInterval(()=>{
+    if(i<text.length){el.innerHTML=text.substring(0,++i).replace(/\n/g,'<br>')+'<span class="typing"></span>';}
+    else{el.innerHTML=text.replace(/\n/g,'<br>');clearInterval(iv);}
+  },12);
+}
+
+function renderOptSliders(){
+  document.getElementById('opt-sliders').innerHTML=assets.map(a=>`
+    <div class="opt-row">
+      <span class="opt-ticker">${a}</span>
+      <input class="opt-slider" type="range" min="0" max="40" value="${currentWeights[a]}" id="sl-${a}" oninput="document.getElementById('pct-${a}').textContent=this.value+'%'">
+      <span class="opt-pct" id="pct-${a}">${currentWeights[a]}%</span>
+      <span class="opt-change" id="chg-${a}" style="color:var(--muted)">—</span>
+    </div>`).join('');
+}
+
+function runOptimizer(){
+  const prog=document.getElementById('opt-progress');
+  let pct=0;
+  const iv=setInterval(()=>{
+    pct+=Math.random()*8;if(pct>100)pct=100;
+    prog.style.width=pct.toFixed(0)+'%';
+    if(pct>=100){
+      clearInterval(iv);
+      assets.forEach(a=>{
+        document.getElementById('sl-'+a).value=optWeights[a];
+        document.getElementById('pct-'+a).textContent=optWeights[a]+'%';
+        const diff=optWeights[a]-currentWeights[a];
+        const el=document.getElementById('chg-'+a);
+        el.textContent=(diff>0?'+':'')+diff+'%';
+        el.style.color=diff>0?'var(--green)':diff<0?'var(--red)':'var(--muted)';
+      });
+    }
+  },80);
+}
+
+function renderFrontier(){
+  const ctx=document.getElementById('frontierChart').getContext('2d');
+  const pts=Array.from({length:40},(_,i)=>{const vol=8+i*0.8;return{x:+vol.toFixed(1),y:+(-2+Math.sqrt(vol)*2.8+Math.random()*1.5).toFixed(2)};});
+  new Chart(ctx,{type:'scatter',data:{datasets:[{label:'Portfolios',data:pts,backgroundColor:'rgba(167,139,250,0.5)',pointRadius:4},{label:'Current',data:[{x:18.6,y:12.1}],backgroundColor:'#ffb547',pointRadius:8,pointStyle:'triangle'},{label:'Optimal',data:[{x:16.2,y:14.8}],backgroundColor:'#00e5a0',pointRadius:8,pointStyle:'star'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{title:{display:true,text:'Volatility (%)',color:'#64748b',font:{size:11}},grid:{color:'rgba(30,45,69,.5)'}},y:{title:{display:true,text:'Expected Return (%)',color:'#64748b',font:{size:11}},grid:{color:'rgba(30,45,69,.5)'}}}}});
+}
+
+function renderPipeline(){
+  const steps=['CSV Validation','yFinance Data Fetch','Return Calculation','Risk Metric Engine','Monte Carlo Simulation','CVXPY Optimization'];
+  document.getElementById('pipeline-steps').innerHTML=steps.map(s=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)" id="pipe-${s.replace(/ /g,'-')}">
+      <span style="font-family:var(--mono);font-size:14px;color:var(--muted)" class="pipe-icon">○</span>
+      <span style="font-size:13px">${s}</span>
+      <span style="margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--muted)" class="pipe-status">READY</span>
+    </div>`).join('');
+}
+
+function simulateUpload(){
+  const steps=['CSV Validation','yFinance Data Fetch','Return Calculation','Risk Metric Engine','Monte Carlo Simulation','CVXPY Optimization'];
+  const log=document.getElementById('log-output');
+  const logLines=['Parsing portfolio.csv... 6 assets detected','Fetching AAPL 2Y daily OHLCV... ✓','Fetching MSFT 2Y daily OHLCV... ✓','Fetching BTC-USD 2Y daily OHLCV... ✓','Computing log returns matrix [504 × 6]','VaR (95%) = -2.34% | CVaR = -3.81%','Running 10,000 Monte Carlo paths...','CVXPY optimizer converged in 142ms','✅ Pipeline complete. Dashboard updated.'];
+  steps.forEach((s,i)=>{
+    setTimeout(()=>{
+      const row=document.getElementById('pipe-'+s.replace(/ /g,'-'));
+      if(row){
+        row.querySelector('.pipe-icon').textContent='◌';row.querySelector('.pipe-icon').style.color='var(--amber)';
+        row.querySelector('.pipe-status').textContent='RUNNING';row.querySelector('.pipe-status').style.color='var(--amber)';
+        setTimeout(()=>{row.querySelector('.pipe-icon').textContent='●';row.querySelector('.pipe-icon').style.color='var(--green)';row.querySelector('.pipe-status').textContent='DONE';row.querySelector('.pipe-status').style.color='var(--green)';},900);
+      }
+    },i*1000);
+    const line=logLines[i];
+    if(line)setTimeout(()=>{log.innerHTML+=`<br><span style="color:var(--green)">→</span> ${line}`;},i*1000+200);
+  });
+}
+
+window.addEventListener('DOMContentLoaded',()=>{
+  renderAlloc();renderCorr();renderPnl();renderRisk();renderMC();renderPaths();
+  renderScenarios();renderOptSliders();renderFrontier();renderPipeline();
+  setTimeout(()=>renderScenChart(scenarios[0]),200);
+});
+</script>
+</body>
+</html>
